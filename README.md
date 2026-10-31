@@ -6,6 +6,8 @@ Small tools for opening a batch of links at once.
 
 A single static page with no build step and no dependencies.
 
+The default links live in `public/links.txt`. The page loads them on first visit, and **Load saved links** brings them back at any time. To change the defaults, edit `links.txt`, commit, and push.
+
 1. Paste any text, such as a WhatsApp chat export.
 2. The page finds every link and removes duplicates.
 3. Click **Open all** to open each link in a new tab, or **Open next** to go one at a time.
@@ -31,6 +33,6 @@ firebase deploy --only hosting
 macOS only. It opens links in Google Chrome on your machine.
 
 ```bash
-python3 scripts/open_links_in_chrome.py             # opens the built-in list
+python3 scripts/open_links_in_chrome.py             # opens public/links.txt
 python3 scripts/open_links_in_chrome.py chat.txt    # finds the links in a text file
 ```

@@ -61,6 +61,7 @@
   <div class="row">
     <button class="primary" id="openAll" disabled>Open all</button>
     <button id="openNext" disabled>Open next</button>
+    <button id="loadDefault">Load saved links</button>
     <button id="clear">Clear</button>
     <label>Delay (ms) <input type="number" id="delay" value="300" min="0" step="100"></label>
   </div>
@@ -128,8 +129,23 @@
   $("clear").addEventListener("click", () => { input.value = ""; render(); });
   input.addEventListener("input", render);
 
-  try { input.value = localStorage.getItem("linkOpenerText") || ""; } catch (e) {}
-  render();
+  // Default links live in links.txt next to this page.
+  async function loadDefault() {
+    try {
+      const res = await fetch("links.txt", { cache: "no-store" });
+      if (!res.ok) throw new Error(res.status);
+      input.value = await res.text();
+    } catch (e) {
+      status.textContent = "Couldn't load links.txt.";
+      return;
+    }
+    render();
+  }
+  $("loadDefault").addEventListener("click", loadDefault);
+
+  let saved = "";
+  try { saved = localStorage.getItem("linkOpenerText") || ""; } catch (e) {}
+  if (saved.trim()) { input.value = saved; render(); } else { loadDefault(); }
 </script>
 </body>
 </html>
