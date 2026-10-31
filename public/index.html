@@ -41,6 +41,7 @@
     border: 1px solid var(--border); background: var(--card); color: var(--text);
   }
   #status { color: var(--muted); font-size: 14px; min-height: 1.5em; }
+  #countdown { font-weight: 600; min-height: 1.5em; }
   ol { padding-left: 22px; }
   li { word-break: break-all; margin: 2px 0; }
   li a { color: var(--accent); }
@@ -65,6 +66,13 @@
     <button id="clear">Clear</button>
     <label>Delay (ms) <input type="number" id="delay" value="300" min="0" step="100"></label>
   </div>
+  <div class="row">
+    <label><input type="checkbox" id="autoOn"> Auto-open every</label>
+    <input type="number" id="interval" value="30" min="1" step="1">
+    <label>minutes</label>
+    <label><input type="checkbox" id="reuse" checked> Reuse the same tabs (refresh instead of opening new ones)</label>
+  </div>
+  <div id="countdown"></div>
   <div id="status"></div>
   <ol id="list"></ol>
 
@@ -72,6 +80,11 @@
     The first time you click "Open all", Chrome may block every tab after the first one.
     Click the pop-up icon at the right of the address bar, choose
     <b>Always allow pop-ups</b> for this site, and click "Open all" again.
+    Auto-open needs that setting too, because its later runs happen without a click.
+  </p>
+  <p class="note">
+    Auto-open runs only while this tab stays open and the computer is awake.
+    After the laptop wakes up, it opens the links once and then goes back to the normal schedule.
   </p>
 </main>
 
@@ -104,20 +117,90 @@
   }
 
   function openAt(i) {
-    window.open(urls[i], "_blank", "noopener");
+    if ($("reuse").checked) {
+      // A fixed tab name per link makes Chrome reload that tab instead of adding a new one.
+      window.open(urls[i], "link-opener-" + i);
+    } else {
+      window.open(urls[i], "_blank", "noopener");
+    }
     list.children[i]?.classList.add("opened");
   }
 
-  $("openAll").addEventListener("click", async () => {
+  let running = false;
+  async function openAll() {
+    if (running) return;
+    running = true;
     const delay = Math.max(0, Number($("delay").value) || 0);
     for (let i = nextIndex; i < urls.length; i++) {
       openAt(i);
       nextIndex = i + 1;
-      status.textContent = `Opened ${nextIndex} of ${urls.length}.`;
+      status.textContent = `Opened ${nextIndex} of ${urls.length} at ${new Date().toLocaleTimeString()}.`;
       if (delay && i < urls.length - 1) await new Promise((r) => setTimeout(r, delay));
     }
     nextIndex = 0;
+    running = false;
+  }
+  $("openAll").addEventListener("click", openAll);
+
+  // ---- Auto-open timer ----
+  // Compares against a target time once a second, so it survives Chrome slowing
+  // down background tabs and catches up right after the laptop wakes.
+  const autoOn = $("autoOn"), intervalInput = $("interval"), countdown = $("countdown");
+  let nextRun = null;
+
+  function intervalMs() { return Math.max(1, Number(intervalInput.value) || 30) * 60000; }
+  function saveSettings() {
+    try {
+      localStorage.setItem("linkOpenerAuto", JSON.stringify({
+        on: autoOn.checked, minutes: intervalInput.value, reuse: $("reuse").checked,
+      }));
+    } catch (e) {}
+  }
+
+  function tick() {
+    if (!autoOn.checked || nextRun === null) {
+      countdown.textContent = "";
+      document.title = "Link Opener";
+      return;
+    }
+    const left = nextRun - Date.now();
+    if (left <= 0) {
+      nextRun = Date.now() + intervalMs();
+      if (urls.length) openAll();
+      return;
+    }
+    const m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
+    const mmss = `${m}:${String(s).padStart(2, "0")}`;
+    countdown.textContent = `Next auto-open in ${mmss} (at ${new Date(nextRun).toLocaleTimeString()}). Keep this tab open.`;
+    document.title = `(${mmss}) Link Opener`;
+  }
+
+  autoOn.addEventListener("change", () => {
+    if (autoOn.checked) {
+      // Ticking the box counts as a click, so the first run opens right away.
+      if (urls.length) openAll();
+      nextRun = Date.now() + intervalMs();
+    } else {
+      nextRun = null;
+    }
+    saveSettings();
+    tick();
   });
+  intervalInput.addEventListener("change", () => {
+    if (autoOn.checked) nextRun = Date.now() + intervalMs();
+    saveSettings();
+    tick();
+  });
+  $("reuse").addEventListener("change", saveSettings);
+
+  try {
+    const s = JSON.parse(localStorage.getItem("linkOpenerAuto") || "{}");
+    if (s.minutes) intervalInput.value = s.minutes;
+    if (s.reuse === false) $("reuse").checked = false;
+    if (s.on) { autoOn.checked = true; nextRun = Date.now() + intervalMs(); }
+  } catch (e) {}
+  setInterval(tick, 1000);
+  tick();
 
   $("openNext").addEventListener("click", () => {
     if (nextIndex >= urls.length) nextIndex = 0;
