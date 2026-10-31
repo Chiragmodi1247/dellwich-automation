@@ -36,3 +36,19 @@ macOS only. It opens links in Google Chrome on your machine.
 python3 scripts/open_links_in_chrome.py             # opens public/links.txt
 python3 scripts/open_links_in_chrome.py chat.txt    # finds the links in a text file
 ```
+
+## Background job on macOS (every 30 minutes)
+
+This opens the links on a schedule even when the web page is closed. It runs as a macOS launchd job, which macOS starts by itself.
+
+```bash
+./scripts/install_mac_scheduler.sh            # every 30 minutes
+./scripts/install_mac_scheduler.sh 15         # pick another interval
+./scripts/install_mac_scheduler.sh uninstall  # stop it
+```
+
+- Each run reads `public/links.txt` from GitHub, so pushing a change to the list updates what opens. When offline, it uses the local copy saved at install time.
+- A link that is already open in a Chrome tab is reloaded instead of opened again.
+- The first run asks for permission to control Chrome. If you miss that prompt, enable it under System Settings → Privacy & Security → Automation.
+- No runs happen while the laptop is asleep. One run happens shortly after it wakes up.
+- Log: `~/Library/Application Support/dellwich-automation/run.log`
