@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link Opener</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --card: #ffffff; --text: #1a1a1a; --muted: #666;
+    --border: #ddd; --accent: #2563eb; --accent-text: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121214; --card: #1c1c1f; --text: #ececec; --muted: #9a9a9a;
+      --border: #333; --accent: #3b82f6; --accent-text: #fff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 16px; }
+  textarea {
+    width: 100%; min-height: 200px; padding: 12px; resize: vertical;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font: 13px/1.4 ui-monospace, monospace;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  button {
+    padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); cursor: pointer; font: inherit;
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  label { color: var(--muted); font-size: 14px; }
+  input[type=number] {
+    width: 70px; padding: 6px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  #status { color: var(--muted); font-size: 14px; min-height: 1.5em; }
+  ol { padding-left: 22px; }
+  li { word-break: break-all; margin: 2px 0; }
+  li a { color: var(--accent); }
+  li.opened a { color: var(--muted); }
+  .note {
+    font-size: 13px; color: var(--muted); border-left: 3px solid var(--border);
+    padding: 4px 10px; margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Link Opener</h1>
+  <p class="sub">Paste any text, like a WhatsApp chat export. The page finds every link in it and opens each one in a new tab.</p>
+
+  <textarea id="input" placeholder="Paste text or links here..."></textarea>
+
+  <div class="row">
+    <button class="primary" id="openAll" disabled>Open all</button>
+    <button id="openNext" disabled>Open next</button>
+    <button id="clear">Clear</button>
+    <label>Delay (ms) <input type="number" id="delay" value="300" min="0" step="100"></label>
+  </div>
+  <div id="status"></div>
+  <ol id="list"></ol>
+
+  <p class="note">
+    The first time you click "Open all", Chrome may block every tab after the first one.
+    Click the pop-up icon at the right of the address bar, choose
+    <b>Always allow pop-ups</b> for this site, and click "Open all" again.
+  </p>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const input = $("input"), list = $("list"), status = $("status");
+  let urls = [], nextIndex = 0;
+
+  function extractUrls(text) {
+    const found = text.match(/https?:\/\/[^\s<>"']+/g) || [];
+    // Trim trailing punctuation that often sticks to links in chats.
+    const cleaned = found.map((u) => u.replace(/[),.;!?\]]+$/, ""));
+    return [...new Set(cleaned)];
+  }
+
+  function render() {
+    urls = extractUrls(input.value);
+    nextIndex = 0;
+    list.innerHTML = "";
+    urls.forEach((u) => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = u; a.textContent = u; a.target = "_blank"; a.rel = "noopener";
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+    $("openAll").disabled = $("openNext").disabled = urls.length === 0;
+    status.textContent = urls.length ? `${urls.length} unique links found.` : "";
+    try { localStorage.setItem("linkOpenerText", input.value); } catch (e) {}
+  }
+
+  function openAt(i) {
+    window.open(urls[i], "_blank", "noopener");
+    list.children[i]?.classList.add("opened");
+  }
+
+  $("openAll").addEventListener("click", async () => {
+    const delay = Math.max(0, Number($("delay").value) || 0);
+    for (let i = nextIndex; i < urls.length; i++) {
+      openAt(i);
+      nextIndex = i + 1;
+      status.textContent = `Opened ${nextIndex} of ${urls.length}.`;
+      if (delay && i < urls.length - 1) await new Promise((r) => setTimeout(r, delay));
+    }
+    nextIndex = 0;
+  });
+
+  $("openNext").addEventListener("click", () => {
+    if (nextIndex >= urls.length) nextIndex = 0;
+    openAt(nextIndex);
+    nextIndex++;
+    status.textContent = `Opened ${nextIndex} of ${urls.length}.`;
+  });
+
+  $("clear").addEventListener("click", () => { input.value = ""; render(); });
+  input.addEventListener("input", render);
+
+  try { input.value = localStorage.getItem("linkOpenerText") || ""; } catch (e) {}
+  render();
+</script>
+</body>
+</html>
